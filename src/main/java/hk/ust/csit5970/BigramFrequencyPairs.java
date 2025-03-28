@@ -53,6 +53,20 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			//if less than 2, jump and return
+			if (words.length < 2) return;
+    			
+			//duel with paris
+    			for (int i = 0; i < words.length - 1; i++) {
+        			if (words[i].length() == 0) continue;
+            			BIGRAM.set(words[i], "");
+            			context.write(BIGRAM, ONE);
+            
+            			if (words[i+1].length() > 0) {
+                			BIGRAM.set(words[i], words[i+1]);
+                			context.write(BIGRAM, ONE);
+				}
+			}
 		}
 	}
 
@@ -64,6 +78,8 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 
 		// Reuse objects.
 		private final static FloatWritable VALUE = new FloatWritable();
+		private String currentWord = null;
+		private float total = 0.0f;
 
 		@Override
 		public void reduce(PairOfStrings key, Iterable<IntWritable> values,
@@ -71,6 +87,28 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			String left = key.getLeftElement();
+                        String right = key.getRightElement();
+			
+			// cumulative add current key count
+                        float sum = 0;
+                        for (IntWritable value : values) {
+                                sum += value.get();
+                        }
+
+        		if (!left.equals(currentWord)) {
+            			currentWord = left;
+            			if (right.isEmpty()) {
+                			total = sum;
+                			VALUE.set(total);
+                			context.write(new PairOfStrings(left, ""), VALUE);
+            			}
+        		} else if (!right.isEmpty()) {
+            			float relativeFreq = sum / total;
+            			VALUE.set(relativeFreq);
+            			context.write(key, VALUE);
+			}
 		}
 	}
 	
@@ -84,6 +122,14 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			//combine and do cumulative addition
+                        int sum = 0;
+                        for (IntWritable value : values) {
+                                sum += value.get();
+                        }
+                        SUM.set(sum);
+                        context.write(key, SUM);			
+
 		}
 	}
 

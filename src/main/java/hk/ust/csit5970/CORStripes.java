@@ -33,6 +33,10 @@ public class CORStripes extends Configured implements Tool {
 	 */
 	private static class CORMapper1 extends
 			Mapper<LongWritable, Text, Text, IntWritable> {
+
+		private static final IntWritable ONE = new IntWritable(1);
+    		private static final Text WORD = new Text();
+
 		@Override
 		public void map(LongWritable key, Text value, Context context)
 				throws IOException, InterruptedException {
@@ -43,6 +47,20 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			while (doc_tokenizer.hasMoreTokens()) {
+            			String word = doc_tokenizer.nextToken();
+            			if (word_set.containsKey(word)) {
+                			word_set.put(word, word_set.get(word) + 1);
+            			} else {
+                			word_set.put(word, 1);
+            			}
+        		}
+        
+        		for (Map.Entry<String, Integer> entry : word_set.entrySet()) {
+            			WORD.set(entry.getKey());
+            			context.write(WORD, new IntWritable(entry.getValue()));
+        		}
 		}
 	}
 
@@ -51,11 +69,21 @@ public class CORStripes extends Configured implements Tool {
 	 */
 	private static class CORReducer1 extends
 			Reducer<Text, IntWritable, Text, IntWritable> {
+
+		private static final IntWritable SUM = new IntWritable();
+
 		@Override
 		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			int sum = 0;
+        		for (IntWritable val : values) {
+            			sum += val.get();
+        		}
+        		SUM.set(sum);
+        		context.write(key, SUM);
 		}
 	}
 
@@ -63,6 +91,9 @@ public class CORStripes extends Configured implements Tool {
 	 * TODO: Write your second-pass Mapper here.
 	 */
 	public static class CORStripesMapper2 extends Mapper<LongWritable, Text, Text, MapWritable> {
+		
+		private Text word = new Text();
+
 		@Override
 		protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 			Set<String> sorted_word_set = new TreeSet<String>();
@@ -75,6 +106,17 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			for (String w1 : sorted_word_set) {
+            			MapWritable stripes = new MapWritable();
+            			for (String w2 : sorted_word_set) {
+                			if (!w1.equals(w2)) {
+                    				stripes.put(new Text(w2), new IntWritable(1));
+                			}
+            			}
+            			word.set(w1);
+            			context.write(word, stripes);
+        		}
 		}
 	}
 
@@ -89,6 +131,21 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			MapWritable combinedStripe = new MapWritable();
+        
+        		for (MapWritable value : values) {
+            			for (Writable k : value.keySet()) {
+                			Text word = (Text) k;
+                			IntWritable sum = (IntWritable) combinedStripe.get(word);
+                			if (sum == null) {
+                    				combinedStripe.put(word, new IntWritable(((IntWritable) value.get(word)).get()));
+                			} else {
+                    				sum.set(sum.get() + ((IntWritable) value.get(word)).get());
+                			}
+            			}
+        		}
+        		context.write(key, combinedStripe);
 		}
 	}
 
@@ -99,6 +156,7 @@ public class CORStripes extends Configured implements Tool {
 		private static Map<String, Integer> word_total_map = new HashMap<String, Integer>();
 		private static IntWritable ZERO = new IntWritable(0);
 
+		private DoubleWritable result = new DoubleWritable();
 		/*
 		 * Preload the middle result file.
 		 * In the middle result file, each line contains a word and its frequency Freq(A), seperated by "\t"
@@ -142,6 +200,33 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			String word1 = key.toString();
+        		if (!word_total_map.containsKey(word1)) return;
+        
+        		MapWritable stripeSum = new MapWritable();
+        		for (MapWritable value : values) {
+            			for (Writable k : value.keySet()) {
+                			Text word = (Text) k;
+                			IntWritable sum = (IntWritable) stripeSum.get(word);
+                			if (sum == null) {
+                    				stripeSum.put(word, new IntWritable(((IntWritable) value.get(word)).get()));
+                			} else {
+                    				sum.set(sum.get() + ((IntWritable) value.get(word)).get());
+                			}
+            			}
+        		}
+        
+        		for (Writable k : stripeSum.keySet()) {
+            			String word2 = ((Text) k).toString();
+            			if (word1.compareTo(word2) < 0 && word_total_map.containsKey(word2)) {
+                			int pairCount = ((IntWritable) stripeSum.get(k)).get();
+                			double correlation = (double) pairCount / (word_total_map.get(word1) * word_total_map.get(word2));
+                			result.set(correlation);
+                			context.write(new PairOfStrings(word1, word2), result);
+            			}
+        		}			
+
 		}
 	}
 

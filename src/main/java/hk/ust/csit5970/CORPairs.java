@@ -43,6 +43,8 @@ public class CORPairs extends Configured implements Tool {
 	 */
 	private static class CORMapper1 extends
 			Mapper<LongWritable, Text, Text, IntWritable> {
+		private static final IntWritable ONE = new IntWritable(1);
+    		private static final Text WORD = new Text();
 		@Override
 		public void map(LongWritable key, Text value, Context context)
 				throws IOException, InterruptedException {
@@ -53,6 +55,20 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			
+			while (doc_tokenizer.hasMoreTokens()) {
+            			String word = doc_tokenizer.nextToken();
+            			if (word_set.containsKey(word)) {
+                			word_set.put(word, word_set.get(word) + 1);
+            			} else {
+                			word_set.put(word, 1);
+            			}
+        		}
+        
+        		for (Map.Entry<String, Integer> entry : word_set.entrySet()) {
+            			WORD.set(entry.getKey());
+            			context.write(WORD, new IntWritable(entry.getValue()));
+        		}
 		}
 	}
 
@@ -66,6 +82,12 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			int sum = 0;
+        		for (IntWritable val : values) {
+            			sum += val.get();
+        		}
+        		context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -74,6 +96,8 @@ public class CORPairs extends Configured implements Tool {
 	 * TODO: Write your second-pass Mapper here.
 	 */
 	public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
+		private static final IntWritable ONE = new IntWritable(1);
+
 		@Override
 		protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 			// Please use this tokenizer! DO NOT implement a tokenizer by yourself!
@@ -81,6 +105,24 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			Set<String> words = new HashSet<String>();
+        		while (doc_tokenizer.hasMoreTokens()) {
+            			words.add(doc_tokenizer.nextToken());
+        		}
+        
+        		List<String> wordList = new ArrayList<String>(words);
+        		for (int i = 0; i < wordList.size(); i++) {
+            			for (int j = i + 1; j < wordList.size(); j++) {
+                			String word1 = wordList.get(i);
+                			String word2 = wordList.get(j);
+                			if (word1.compareTo(word2) < 0) {
+                    				context.write(new PairOfStrings(word1, word2), ONE);
+                			} else {
+                    				context.write(new PairOfStrings(word2, word1), ONE);
+                			}
+            			}
+        		}
 		}
 	}
 
@@ -93,6 +135,12 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			int sum = 0;
+        		for (IntWritable val : values) {
+            			sum += val.get();
+        		}
+        		context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -102,6 +150,7 @@ public class CORPairs extends Configured implements Tool {
 	public static class CORPairsReducer2 extends Reducer<PairOfStrings, IntWritable, PairOfStrings, DoubleWritable> {
 		private final static Map<String, Integer> word_total_map = new HashMap<String, Integer>();
 
+		private final static DoubleWritable result = new DoubleWritable();
 		/*
 		 * Preload the middle result file.
 		 * In the middle result file, each line contains a word and its frequency Freq(A), seperated by "\t"
@@ -145,6 +194,20 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+
+			int pairCount = 0;
+        		for (IntWritable val : values) {
+            			pairCount += val.get();
+        		}
+        
+        		String word1 = key.getLeftElement();
+        		String word2 = key.getRightElement();
+        
+        		if (word_total_map.containsKey(word1) && word_total_map.containsKey(word2)) {
+            			double correlation = (double) pairCount / (word_total_map.get(word1) * word_total_map.get(word2));
+            			result.set(correlation);
+            			context.write(key, result);
+        		}
 		}
 	}
 
