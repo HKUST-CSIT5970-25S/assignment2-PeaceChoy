@@ -5,6 +5,13 @@
 
 ---
 
+
+### Name: CAI, Huaiyu
+### Student ID: 21139725
+### Email: hcaiai@connect.ust.hk
+
+---
+
 ## MapReduce Programming
 
 In this assignment, you will write MapReduce code that counts the bigrams appeared in a text file, using the two design patterns taught in class. Please follow these instructions carefully!
